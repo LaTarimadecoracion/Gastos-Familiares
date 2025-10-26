@@ -81,7 +81,9 @@ function setupFirebaseAuthUI() {
             authBtn.title = `Cerrar sesión (${user.displayName || user.email || user.uid})`;
             // Migrar datos locales primero para evitar sobrescribirlos con el snapshot remoto
             try {
-                await migrateLocalToRemote();
+                console.log('ℹ️ Iniciando migración automática de datos locales...');
+                await migrateLocalToRemote({ confirmUser: false });
+                console.log('✅ Migración automática completada');
             } catch (e) {
                 console.warn('⚠️ Error durante migración automática:', e);
             }
