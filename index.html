@@ -416,7 +416,11 @@
     <script>
         if('serviceWorker' in navigator){
             window.addEventListener('load',()=>{
-                navigator.serviceWorker.register('./sw.js');
+                // Registrar el service worker con scope explícito para Pages en subdirectorio
+                // Esto asegura que el SW controle solo /Gastos-Familiares/ y ayuda a que
+                // la instalación PWA detecte correctamente la app como independiente.
+                navigator.serviceWorker.register('./sw.js', { scope: '/Gastos-Familiares/' })
+                    .catch(err => console.warn('SW registration failed:', err));
             });
         }
         
