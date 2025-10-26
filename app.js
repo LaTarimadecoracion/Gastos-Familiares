@@ -17,6 +17,159 @@ if (!window.AppState) {
 // Referencia corta para el estado
 const AppState = window.AppState;
 
+// -------------------------
+// Integración básica con Firebase (Firestore + Auth)
+// Requiere que `firebase-config.js` defina `window.firebaseConfig`
+// y que `window.FIREBASE_ENABLED` esté a true una vez se haya pegado
+// la configuración real del proyecto.
+// -------------------------
+window.FIREBASE_ENABLED = window.FIREBASE_ENABLED || false;
+let firebaseDb = null;
+let firebaseAuth = null;
+let firebaseUnsub = null;
+
+function initFirebase() {
+    if (!window.FIREBASE_ENABLED) {
+        console.log('ℹ️ Firebase integration disabled (FIREBASE_ENABLED=false)');
+        return;
+    }
+    if (typeof firebase === 'undefined' || !window.firebaseConfig) {
+        console.warn('⚠️ Firebase SDK or config not found. Skipping Firebase init.');
+        return;
+    }
+
+    try {
+        if (!firebase.apps.length) {
+            firebase.initializeApp(window.firebaseConfig);
+            console.log('✅ Firebase initialized');
+        } else {
+            console.log('ℹ️ Firebase already initialized');
+        }
+
+        firebaseAuth = firebase.auth();
+        firebaseDb = firebase.firestore();
+
+        // Enable offline persistence where possible
+        firebaseDb.enablePersistence().catch(err => {
+            console.warn('⚠️ Firestore persistence not available:', err && err.message ? err.message : err);
+        });
+
+        setupFirebaseAuthUI();
+    } catch (e) {
+        console.warn('⚠️ Error initializing Firebase:', e);
+    }
+}
+
+function setupFirebaseAuthUI() {
+    const header = document.querySelector('.header-info');
+    if (!header || !firebaseAuth) return;
+
+    let authBtn = document.getElementById('firebaseAuthBtn');
+    if (!authBtn) {
+        authBtn = document.createElement('button');
+        authBtn.id = 'firebaseAuthBtn';
+        authBtn.className = 'theme-toggle';
+        authBtn.style.marginLeft = '8px';
+        authBtn.title = 'Iniciar sesión / Cerrar sesión';
+        header.appendChild(authBtn);
+    }
+
+    // React to auth state
+    firebaseAuth.onAuthStateChanged(user => {
+        if (user) {
+            authBtn.textContent = 'Salir';
+            authBtn.title = `Cerrar sesión (${user.displayName || user.email || user.uid})`;
+            startRemoteSync(user.uid);
+        } else {
+            authBtn.textContent = 'Ingresar';
+            authBtn.title = 'Iniciar sesión';
+            stopRemoteSync();
+        }
+    });
+
+    authBtn.addEventListener('click', async () => {
+        const user = firebaseAuth.currentUser;
+        if (user) {
+            await firebaseAuth.signOut();
+        } else {
+            // Sign in with Google popup
+            const provider = new firebase.auth.GoogleAuthProvider();
+            try {
+                await firebaseAuth.signInWithPopup(provider);
+            } catch (err) {
+                console.warn('⚠️ Firebase auth error:', err);
+                alert('Error en autenticación: ' + (err && err.message ? err.message : err));
+            }
+        }
+    });
+}
+
+function startRemoteSync(uid) {
+    if (!firebaseDb) return;
+    if (firebaseUnsub) firebaseUnsub();
+
+    const coll = firebaseDb.collection('users').doc(uid).collection('transactions');
+    firebaseUnsub = coll.orderBy('date', 'desc').onSnapshot(snap => {
+        const remote = [];
+        snap.forEach(doc => {
+            const d = doc.data();
+            d.id = doc.id;
+            remote.push(d);
+        });
+        // Replace local transactions with remote list (simple approach)
+        AppState.transactions = remote;
+        if (typeof displayTransactions === 'function') displayTransactions();
+    }, err => {
+        console.warn('⚠️ Remote sync error:', err);
+    });
+}
+
+function stopRemoteSync() {
+    if (firebaseUnsub) {
+        firebaseUnsub();
+        firebaseUnsub = null;
+    }
+}
+
+async function saveTransactionRemote(tx) {
+    if (!firebaseAuth || !firebaseAuth.currentUser) throw new Error('Not authenticated');
+    if (!firebaseDb) throw new Error('Firestore not initialized');
+
+    const user = firebaseAuth.currentUser;
+    const normalized = normalizeTransaction(tx);
+    normalized.ownerUid = user.uid;
+    normalized.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    if (normalized.id) {
+        // update
+        await firebaseDb.collection('users').doc(user.uid).collection('transactions').doc(normalized.id).set(normalized, { merge: true });
+        return normalized.id;
+    } else {
+        const r = await firebaseDb.collection('users').doc(user.uid).collection('transactions').add(normalized);
+        return r.id;
+    }
+}
+
+async function deleteTransactionRemote(id) {
+    if (!firebaseAuth || !firebaseAuth.currentUser) throw new Error('Not authenticated');
+    if (!firebaseDb) throw new Error('Firestore not initialized');
+    const user = firebaseAuth.currentUser;
+    await firebaseDb.collection('users').doc(user.uid).collection('transactions').doc(id).delete();
+}
+
+async function migrateLocalToRemote() {
+    if (!firebaseAuth || !firebaseAuth.currentUser) { alert('Por favor inicia sesión antes de migrar los datos'); return; }
+    if (!confirm('¿Deseas migrar las transacciones locales a Firestore? Esto puede crear duplicados.')) return;
+    const u = firebaseAuth.currentUser;
+    const saved = localStorage.getItem('gastosApp');
+    if (!saved) { alert('No hay datos locales para migrar'); return; }
+    const data = JSON.parse(saved);
+    const txs = data.transactions || AppState.transactions || [];
+    for (const t of txs) {
+        try { await saveTransactionRemote(t); } catch (e) { console.warn('migrate error', e); }
+    }
+    alert('Migración finalizada');
+}
+
 // ==========================================
 // MODO OSCURO
 // ==========================================
@@ -183,6 +336,8 @@ function normalizeTransaction(t) {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('✅ App iniciando...');
     initTheme(); // Inicializar tema primero
+    // Inicializar Firebase si está habilitado (carga SDK y config en index.html)
+    try { initFirebase(); } catch (e) { console.warn('Firebase init failed at startup', e); }
     loadData();
     initializeUI();
     attachEventListeners();
