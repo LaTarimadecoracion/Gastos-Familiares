@@ -5,14 +5,17 @@
 // credentials publicly if you don't want them in the repo.
 
 window.firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyAX-Dq0wBcOmDG_G1Vso1VTCzedvmi4EmQ",
+  authDomain: "gastos-84a95.firebaseapp.com",
+  projectId: "gastos-84a95",
+  storageBucket: "gastos-84a95.appspot.com",
+  messagingSenderId: "296681422203",
+  // appId is usually in the form 1:<PROJECT_NUMBER>:web:<HASH>
+  // If you have the exact appId, replace the placeholder below.
+  appId: "1:296681422203:web:REPLACE_WITH_APPID"
 };
 
-// Optional: set a flag to enable Firebase integration (set to true after
-// you fill the values above). If left false the app will not try to init.
-window.FIREBASE_ENABLED = false;
+// Habilita la integración una vez pegadas las credenciales (true/false)
+// Ya he colocado los valores que me diste; si el appId no coincide pega
+// el valor correcto y vuelve a subir.
+window.FIREBASE_ENABLED = true;
