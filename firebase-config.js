@@ -10,9 +10,8 @@ window.firebaseConfig = {
   projectId: "gastos-84a95",
   storageBucket: "gastos-84a95.appspot.com",
   messagingSenderId: "296681422203",
-  // appId is usually in the form 1:<PROJECT_NUMBER>:web:<HASH>
-  // If you have the exact appId, replace the placeholder below.
-  appId: "1:296681422203:web:REPLACE_WITH_APPID"
+  // appId from your Firebase app (web)
+  appId: "1:296681422203:web:e17b7e83e028865c6611de"
 };
 
 // Habilita la integración una vez pegadas las credenciales (true/false)
