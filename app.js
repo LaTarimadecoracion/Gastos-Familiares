@@ -467,6 +467,16 @@ function loadData() {
 function saveData() {
     localStorage.setItem('gastosApp', JSON.stringify(AppState));
     console.log('💾 Datos guardados en localStorage');
+    // Si estamos autenticados, intentar guardar un snapshot mínimo en Firestore
+    (async () => {
+        try {
+            if (window.FIREBASE_ENABLED && firebaseAuth && firebaseAuth.currentUser && firebaseDb) {
+                await saveDataToFirebase();
+            }
+        } catch (e) {
+            console.warn('⚠️ saveData: error guardando snapshot en Firebase:', e);
+        }
+    })();
 }
 
 // Inicializar UI
@@ -2154,23 +2164,37 @@ window.deleteTransaction = deleteTransaction;
 
 // Guardar datos en Firebase (función mínima para evitar errores si se llama)
 async function saveDataToFirebase() {
-    if (!window.db) {
-        console.log('ℹ️ saveDataToFirebase: No hay instancia de Firebase (window.db) — omitiendo subida');
-        return Promise.resolve();
+    // Preferir usar la instancia compat (firebaseDb) si está disponible
+    if (firebaseDb) {
+        try {
+            await firebaseDb.collection('backups').doc('latest').set({
+                updatedAt: new Date().toISOString(),
+                modulesByMonth: AppState.modulesByMonth,
+                transactions: AppState.transactions.slice(-5000) // evitar subir un payload excesivo
+            });
+            console.log('✅ saveDataToFirebase: datos guardados (backups/latest) via compat');
+            return Promise.resolve();
+        } catch (error) {
+            console.error('❌ saveDataToFirebase error (compat):', error);
+            return Promise.reject(error);
+        }
     }
 
+    // Fallback: intentar usar la API modular si no hay compat
     try {
-        const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore.js');
-        const ref = doc(db, 'backups', 'latest');
+        const { getFirestore, doc, setDoc } = await import('https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js');
+        // Intentar obtener una instancia modular usando window.firebaseConfig
+        const modularDb = getFirestore();
+        const ref = doc(modularDb, 'backups', 'latest');
         await setDoc(ref, {
             updatedAt: new Date().toISOString(),
             modulesByMonth: AppState.modulesByMonth,
-            transactions: AppState.transactions.slice(-5000) // evitar subir un payload excesivo
+            transactions: AppState.transactions.slice(-5000)
         });
-        console.log('✅ saveDataToFirebase: datos guardados (backup.latest)');
+        console.log('✅ saveDataToFirebase: datos guardados (backups/latest) via modular fallback');
         return Promise.resolve();
     } catch (error) {
-        console.error('❌ saveDataToFirebase error:', error);
+        console.error('❌ saveDataToFirebase fallback error:', error);
         return Promise.reject(error);
     }
 }
