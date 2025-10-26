@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#18181B">
+    <meta name="description" content="Aplicación para control de gastos, ingresos y ventas familiares">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Gastos">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' fill='%2318181B'/><text x='90' y='130' font-size='110' text-anchor='middle' fill='%23FFF'>💰</text></svg>">
+    <title>Control de Gastos Familiar 💰</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>">
+    <style>:root{--primary:#27272A;--primary-dark:#18181B;--bg:#E4E4E7;--surface:#F4F4F5;--text:#18181B}[data-theme="dark"]{--primary:#71717A;--bg:#09090B;--surface:#18181B;--text:#FAFAFA}body{background:var(--bg);color:var(--text);margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}.app-container{background:var(--surface)}</style>
+    <link rel="stylesheet" href="styles.css?v=71">
+    <script>window.db=null</script>
+</head>
+<body>
+    <div class="app-container" id="appContainer" style="display: block;">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-info">
+                <div class="month-selector">
+                    <button id="prevMonth" class="month-nav-btn">◀</button>
+                    <span class="current-month" id="currentMonth"></span>
+                    <button id="nextMonth" class="month-nav-btn">▶</button>
+                </div>
+                <button id="themeToggle" class="theme-toggle" title="Cambiar tema (Claro/Oscuro)">
+                    <span class="theme-icon">🌙</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Tabs Navigation -->
+        <nav class="tabs">
+            <button class="tab-btn active" data-tab="dashboard">
+                <span class="tab-icon">📊</span>
+                <span class="tab-label">Dashboard</span>
+            </button>
+            <button class="tab-btn" data-tab="transactions">
+                <span class="tab-icon">📝</span>
+                <span class="tab-label">Transacciones</span>
+            </button>
+            <button class="tab-btn" data-tab="modules">
+                <span class="tab-icon">💳</span>
+                <span class="tab-label">Módulos</span>
+            </button>
+            <button class="tab-btn" data-tab="backup">
+                <span class="tab-icon">💾</span>
+                <span class="tab-label">Backup</span>
+            </button>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Tab -->
+            <section class="tab-content active" id="dashboard">
+                <!-- Quick Add Form -->
+                <div class="quick-add-section">
+                    <form id="quickAddForm" class="quick-add-form-inline">
+                        <input type="number" 
+                               id="quickDay" 
+                               name="day" 
+                               placeholder="Día"
+                               min="1"
+                               max="31"
+                               required>
+                        
+               <input type="text" 
+                   id="quickAmount" 
+                   name="amount" 
+                   placeholder="$ Monto" 
+                   inputmode="decimal"
+                   autocomplete="off"
+                   required>
+                        
+                        <select id="quickType" name="type" required>
+                            <option value="ingreso">💰 Ingreso</option>
+                            <option value="gasto">💸 Gasto</option>
+                            <option value="venta">💵 Venta</option>
+                        </select>
+
+                        <select id="quickCategory" name="category" required>
+                            <option value="la_tarima">🔨 La Tarima</option>
+                            <option value="comida">🍔 Comida</option>
+                            <option value="transporte">🚗 Transporte</option>
+                            <option value="servicios">💡 Servicios</option>
+                            <option value="salud">🏥 Salud</option>
+                            <option value="entretenimiento">🎮 Entret.</option>
+                            <option value="compras">🛒 Compras</option>
+                            <option value="educacion">📚 Educ.</option>
+                            <option value="otros">📦 Otros</option>
+                        </select>
+
+                        <button type="button" class="btn-add-detail-inline" id="btnAddDetail" title="Agregar detalle">
+                            ➕
+                        </button>
+
+                        <button type="submit" class="btn-quick-add-inline">
+                            ✅
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Balance Segmented Button -->
+                <div class="balance-segmented">
+                    <div class="segment segment-initial">
+                        <div class="segment-label">INICIAL</div>
+                        <div class="segment-amount" id="totalInicial">$0.00</div>
+                    </div>
+                    <div class="segment segment-balance">
+                        <div class="segment-label">ACTUAL</div>
+                        <div class="segment-amount" id="totalBalance">$0.00</div>
+                    </div>
+                    <div class="segment segment-expense">
+                        <div class="segment-label">GASTOS</div>
+                        <div class="segment-amount" id="totalExpenses">$0.00</div>
+                    </div>
+                    <div class="segment segment-income">
+                        <div class="segment-label">INGRESOS</div>
+                        <div class="segment-amount" id="totalIncome">$0.00</div>
+                    </div>
+                </div>
+
+                <!-- Estadísticas de La Tarima -->
+                <div class="tarima-stats" id="tarimaStats"></div>
+
+                <div class="recent-section">
+                    <h2 style="margin-bottom: 0.75rem;">Transacciones</h2>
+                    <div class="filters-bar quick-add-form-inline">
+                        <input type="number" 
+                               id="filterDay" 
+                               placeholder="Día"
+                               value=""
+                               min="1" 
+                               max="31">
+                        
+                        <select id="filterDashType">
+                            <option value="all">🔍 Filtrar por tipo...</option>
+                            <option value="ingreso">💰 Ingreso</option>
+                            <option value="gasto">💸 Gasto</option>
+                            <option value="venta">💵 Venta</option>
+                        </select>
+
+                        <select id="filterDashCategory">
+                            <option value="all">🔍 Filtrar por categoría...</option>
+                            <option value="la_tarima">🔨 La Tarima</option>
+                            <option value="comida">🍔 Comida</option>
+                            <option value="transporte">🚗 Transporte</option>
+                            <option value="servicios">💡 Servicios</option>
+                            <option value="salud">🏥 Salud</option>
+                            <option value="entretenimiento">🎮 Entret.</option>
+                            <option value="compras">🛒 Compras</option>
+                            <option value="educacion">📚 Educ.</option>
+                            <option value="otros">📦 Otros</option>
+                        </select>
+                        
+                        <button type="button" class="btn-clear-filter-inline" id="btnClearFilter" title="Limpiar filtros">
+                            ❌
+                        </button>
+                    </div>
+                    <div class="recent-transactions" id="recentTransactions"></div>
+                </div>
+
+                <div class="chart-section">
+                    <h2>Gastos por Categoría</h2>
+                    <div class="chart-container" id="categoryChart"></div>
+                </div>
+            </section>
+
+            <!-- Transactions Tab -->
+            <section class="tab-content" id="transactions">
+                <div class="transactions-header">
+                    <h2>Historial de Transacciones</h2>
+                    <button class="btn-secondary-small" id="addTransactionBtn">
+                        ➕ Detallada
+                    </button>
+                </div>
+
+                <div class="filters">
+                    <select id="filterType" class="filter-select">
+                        <option value="all">🔍 Filtrar por tipo...</option>
+                        <option value="gasto">💸 Gastos</option>
+                        <option value="ingreso">💰 Ingresos</option>
+                        <option value="venta">💵 Ventas</option>
+                    </select>
+                </div>
+
+                <div class="transactions-header">
+                    <div class="th-fecha">FECHA</div>
+                    <div class="th-tipo">TIPO</div>
+                    <div class="th-categoria">CATEGORÍA</div>
+                    <div class="th-descripcion">DESCRIPCIÓN</div>
+                    <div class="th-monto">MONTO</div>
+                    <div class="th-acciones"></div>
+                </div>
+
+                <div class="transactions-list" id="transactionsList"></div>
+            </section>
+
+            <!-- Modules Tab -->
+            <section class="tab-content" id="modules">
+                <!-- Barra de información de módulos -->
+                <div class="modules-info-bar">
+                    <div class="info-bar-item">
+                        <div class="info-bar-label">INICIAL</div>
+                        <div class="info-bar-amount" id="totalInicialModules">$0.00</div>
+                    </div>
+                    <div class="info-bar-separator">|</div>
+                    <div class="info-bar-item">
+                        <div class="info-bar-label">MES ANTERIOR</div>
+                        <div class="info-bar-amount" id="totalMesAnterior">$0.00</div>
+                    </div>
+                    <div class="info-bar-separator">|</div>
+                    <div class="info-bar-item">
+                        <div class="info-bar-label">DIFERENCIA</div>
+                        <div class="info-bar-amount" id="totalDiferencia">$0.00</div>
+                    </div>
+                    <div class="info-bar-separator">|</div>
+                    <div class="info-bar-item">
+                        <div class="info-bar-label">AHORRO</div>
+                        <div class="info-bar-amount" id="totalAhorro">$0.00</div>
+                    </div>
+                </div>
+
+                <!-- Tarjetas de Módulos -->
+                <div class="modules-grid" id="modulesCards">
+                    <div class="module-card" data-module="efectivo" onclick="editModule('efectivo')">
+                        <div class="module-name">EFECTIVO</div>
+                        <div class="module-balance" id="efectivo-amount">$0.00</div>
+                    </div>
+
+                    <div class="module-card" data-module="banco" onclick="editModule('banco')">
+                        <div class="module-name">BANCO</div>
+                        <div class="module-balance" id="banco-amount">$0.00</div>
+                    </div>
+
+                    <div class="module-card" data-module="ml_jona" onclick="editModule('ml_jona')">
+                        <div class="module-name">ML JONA</div>
+                        <div class="module-balance" id="ml_jona-amount">$0.00</div>
+                    </div>
+
+                    <div class="module-card" data-module="ml_ceci" onclick="editModule('ml_ceci')">
+                        <div class="module-name">ML CECI</div>
+                        <div class="module-balance" id="ml_ceci-amount">$0.00</div>
+                    </div>
+                </div>
+
+                <div class="danger-zone">
+                    <h3>⚠️ Zona de Peligro</h3>
+                    <button class="btn-danger" id="resetMonthBtn">
+                        🔄 Reiniciar Mes Actual
+                    </button>
+                    <p class="danger-text">Esto eliminará todas las transacciones del mes actual</p>
+                </div>
+            </section>
+
+            <!-- Backup Tab -->
+            <section class="tab-content" id="backup">
+                <div class="backup-section">
+                    <h2>💾 Respaldo de Datos</h2>
+                    <p>Descarga tus transacciones en formato Excel o CSV para tener una copia de seguridad.</p>
+                    
+                    <div class="backup-options">
+                        <button class="btn-primary btn-large" id="exportExcelBtn">
+                            📊 Descargar Excel (Todas las Transacciones)
+                        </button>
+                        
+                        <button class="btn-secondary btn-large" id="exportCSVBtn">
+                            📄 Descargar CSV (Mes Actual)
+                        </button>
+                        
+                        <button class="btn-secondary btn-large" id="exportJSONBtn">
+                            💾 Descargar Backup Completo (JSON)
+                        </button>
+                        
+                        <div style="margin-top: 2rem; border-top: 1px solid #e2e8f0; padding-top: 1.5rem;">
+                            <h3>📤 Importar Transacciones</h3>
+                            <p>Importa transacciones desde un archivo CSV.</p>
+                            <button class="btn-primary btn-large" id="importTransactionsBtn" style="margin-top: 0.5rem;">
+                                📤 Seleccionar Archivo CSV
+                            </button>
+                            <input type="file" id="fileInput" accept=".csv" style="display: none;">
+                            <p class="text-muted small" style="margin-top: 0.5rem;">
+                                Formato: fecha,descripcion,monto,tipo,categoria<br>
+                                Ejemplo: 2023-10-25,Supermercado,15000,gasto,comida
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="backup-restore">
+                        <h3>📥 Restaurar desde Backup</h3>
+                        <p>Sube un archivo JSON de respaldo. La app detectará automáticamente qué meses contiene y te preguntará qué quieres hacer.</p>
+                        <input type="file" id="restoreFileInput" accept=".json" style="display:none;">
+                        
+                        <button class="btn-warning btn-large" id="restoreBackupBtn">
+                            📥 Restaurar desde JSON
+                        </button>
+                        
+                        <p class="info-text">ℹ️ Podrás elegir: restaurar todo o solo meses específicos</p>
+                    </div>
+
+                    <div class="backup-info">
+                        <h3>ℹ️ Información</h3>
+                        <ul>
+                            <li><strong>Excel:</strong> Archivo .xlsx con todas tus transacciones organizadas por mes</li>
+                            <li><strong>CSV:</strong> Archivo de texto simple que puedes abrir en Excel o Google Sheets</li>
+                            <li><strong>JSON:</strong> Backup completo incluyendo módulos (para restaurar si es necesario)</li>
+                        </ul>
+                        <p class="last-backup">Última exportación: <span id="lastExportTime">Nunca</span></p>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal para agregar transacción -->
+    <div class="modal" id="transactionModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Nueva Transacción</h2>
+                <button class="modal-close" id="closeModal">&times;</button>
+            </div>
+            <form id="transactionForm" class="transaction-form">
+                <div class="form-group">
+                    <label for="transactionDate">Fecha</label>
+                    <input type="date" id="transactionDate" name="date" required>
+                </div>
+                <div class="form-group">
+                    <label for="transactionType">Tipo</label>
+                    <select id="transactionType" name="type" required>
+                        <option value="gasto">💸 Gasto</option>
+                        <option value="ingreso">💰 Ingreso</option>
+                        <option value="venta">💵 Venta</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="transactionModule">Módulo</label>
+                    <select id="transactionModule" name="module" required>
+                        <option value="efectivo">💵 Efectivo</option>
+                        <option value="banco">🏦 Banco</option>
+                        <option value="ml_jona">📱 ML Jona</option>
+                        <option value="ml_ceci">📱 ML Ceci</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="transactionCategory">Categoría</label>
+                    <select id="transactionCategory" name="category" required>
+                        <option value="la_tarima">🔨 La Tarima</option>
+                        <option value="comida">🍔 Comida</option>
+                        <option value="transporte">🚗 Transporte</option>
+                        <option value="servicios">💡 Servicios</option>
+                        <option value="salud">🏥 Salud</option>
+                        <option value="entretenimiento">🎮 Entretenimiento</option>
+                        <option value="compras">🛒 Compras</option>
+                        <option value="educacion">📚 Educación</option>
+                        <option value="otros">📦 Otros</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="transactionAmount">Monto</label>
+                    <input type="text" id="transactionAmount" name="amount" inputmode="decimal" required>
+                </div>
+                <div class="form-group">
+                    <label for="transactionDescription">Descripción (opcional)</label>
+                    <input type="text" id="transactionDescription" name="description">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" id="cancelTransaction">Cancelar</button>
+                    <button type="submit" class="btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Selector de Mes -->
+    <div class="modal" id="monthPickerModal">
+        <div class="modal-content month-picker-content">
+            <div class="modal-header">
+                <h2>Seleccionar Mes</h2>
+                <button class="close-btn" id="closeMonthPicker">&times;</button>
+            </div>
+            <form id="monthPickerForm" class="month-picker-form">
+                <div class="form-group">
+                    <label for="pickerMonth">Mes</label>
+                    <select id="pickerMonth" required>
+                        <option value="01">Enero</option>
+                        <option value="02">Febrero</option>
+                        <option value="03">Marzo</option>
+                        <option value="04">Abril</option>
+                        <option value="05">Mayo</option>
+                        <option value="06">Junio</option>
+                        <option value="07">Julio</option>
+                        <option value="08">Agosto</option>
+                        <option value="09">Septiembre</option>
+                        <option value="10">Octubre</option>
+                        <option value="11">Noviembre</option>
+                        <option value="12">Diciembre</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="pickerYear">Año</label>
+                    <input type="number" id="pickerYear" min="2020" max="2030" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" id="cancelMonthPicker">Cancelar</button>
+                    <button type="submit" class="btn-primary">Ir al mes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script defer src="app.js?v=69"></script>
+    <script>
+        if('serviceWorker' in navigator){
+            window.addEventListener('load',()=>{
+                navigator.serviceWorker.register('./sw.js');
+            });
+        }
+        
+        // Detectar cuando la app puede ser instalada
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt',(e)=>{
+            e.preventDefault();
+            deferredPrompt=e;
+            console.log('✅ PWA lista para instalar');
+            
+            // Opcional: Mostrar un botón de instalación
+            // const installBtn = document.createElement('button');
+            // installBtn.textContent = '📲 Instalar App';
+            // installBtn.style.cssText = 'position:fixed;bottom:20px;right:20px;padding:12px 20px;background:#18181B;color:#FFF;border:none;border-radius:8px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.3);cursor:pointer;z-index:9999';
+            // installBtn.onclick = async ()=>{
+            //     if(deferredPrompt){
+            //         deferredPrompt.prompt();
+            //         const {outcome} = await deferredPrompt.userChoice;
+            //         console.log(`User response: ${outcome}`);
+            //         deferredPrompt=null;
+            //         installBtn.remove();
+            //     }
+            // };
+            // document.body.appendChild(installBtn);
+        });
+        
+        window.addEventListener('appinstalled',()=>{
+            console.log('✅ PWA instalada correctamente');
+            deferredPrompt=null;
+        });
+    </script>
+</body>
+</html>
