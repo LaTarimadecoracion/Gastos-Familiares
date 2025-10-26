@@ -987,6 +987,18 @@ function handleDeleteTransaction(transactionId) {
         displayRecentTransactions();
         displayTransactions();
         showNotification('🗑️ Transacción eliminada');
+
+        // Intentar eliminar en remoto
+        (async () => {
+            try {
+                if (window.FIREBASE_ENABLED && firebaseAuth && firebaseAuth.currentUser && firebaseDb) {
+                    await deleteTransactionRemote(transactionId);
+                }
+            } catch (err) {
+                console.warn('⚠️ Error eliminando transacción remota:', err);
+                showNotification('⚠️ Error eliminando en servidor');
+            }
+        })();
     }
 }
 
@@ -1132,6 +1144,20 @@ function handleInlineEditSubmit(e, transactionId) {
         AppState.transactions[index] = updatedTransaction;
         
         saveData();
+
+        // Intentar sincronizar la actualización en Firestore si está autenticado
+        (async () => {
+            try {
+                if (window.FIREBASE_ENABLED && firebaseAuth && firebaseAuth.currentUser && firebaseDb) {
+                    // Si la transacción tiene un id generado por el cliente, pasarlo; si no, Firestore lo creará
+                    const payload = Object.assign({}, updatedTransaction);
+                    await saveTransactionRemote(payload);
+                }
+            } catch (err) {
+                console.warn('⚠️ Error sincronizando actualización remota:', err);
+                showNotification('⚠️ Error sincronizando con servidor');
+            }
+        })();
         updateDashboard();
         displayRecentTransactions();
         
@@ -1541,9 +1567,35 @@ function handleQuickAddSubmit(e) {
     };
 
     const normalized = normalizeTransaction(transaction);
+
+    // Guardar localmente primero (respuesta instantánea)
     AppState.transactions.push(normalized);
-    
     saveData();
+
+    // Si Firebase está habilitado y hay usuario autenticado, intentar guardar en remoto
+    (async () => {
+        try {
+            if (window.FIREBASE_ENABLED && firebaseAuth && firebaseAuth.currentUser && firebaseDb) {
+                // Para evitar colisiones de ID entre dispositivos, eliminar el id local
+                // y permitir que Firestore genere uno si es posible.
+                const provisionalId = normalized.id;
+                const payload = Object.assign({}, normalized);
+                delete payload.id;
+                const remoteId = await saveTransactionRemote(payload);
+
+                // Actualizar la transacción local con el ID remoto
+                const idx = AppState.transactions.findIndex(t => t.id === provisionalId);
+                if (idx !== -1) {
+                    AppState.transactions[idx].id = remoteId;
+                    // También actualizar cualquier campo que el servidor haya añadido
+                    AppState.transactions[idx] = Object.assign({}, AppState.transactions[idx], payload, { id: remoteId });
+                    saveData();
+                }
+            }
+        } catch (err) {
+            console.warn('⚠️ Error sincronizando transacción al remoto:', err);
+        }
+    })();
     
     // Limpiar solo el campo de monto y mantener el foco en él
     document.getElementById('quickAmount').value = '';
@@ -1597,13 +1649,25 @@ function deleteTransaction(id) {
         return;
     }
 
+    // Eliminar localmente inmediatamente
     AppState.transactions = AppState.transactions.filter(t => t.id !== id);
     saveData();
-    
     updateDashboard();
     displayTransactions();
-    
     showNotification('🗑️ Transacción eliminada');
+
+    // Intentar eliminar también en Firestore si está autenticado
+    (async () => {
+        try {
+            if (window.FIREBASE_ENABLED && firebaseAuth && firebaseAuth.currentUser && firebaseDb) {
+                await deleteTransactionRemote(id);
+            }
+        } catch (err) {
+            console.warn('⚠️ Error eliminando transacción remota:', err);
+            // No revertimos la eliminación local; avisamos al usuario
+            showNotification('⚠️ Error eliminando en servidor');
+        }
+    })();
 }
 
 // Reiniciar mes
