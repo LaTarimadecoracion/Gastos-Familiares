@@ -1,8 +1,8 @@
-// Firebase configuration placeholder.
-// COPY this file to firebase-config.js and replace the values with
-// your Firebase project's configuration from the Firebase console.
-// This file intentionally contains placeholders — do NOT commit real
-// credentials publicly if you don't want them in the repo.
+// Firebase client configuration (compat-friendly)
+// This file is loaded as a plain <script> (no type="module") from index.html
+// `app.js` expects `window.firebaseConfig` and `window.FIREBASE_ENABLED`.
+
+window.FIREBASE_ENABLED = true; // Activa la integración de Firebase en la app
 
 window.firebaseConfig = {
   apiKey: "AIzaSyAX-Dq0wBcOmDG_G1Vso1VTCzedvmi4EmQ",
@@ -10,11 +10,9 @@ window.firebaseConfig = {
   projectId: "gastos-84a95",
   storageBucket: "gastos-84a95.appspot.com",
   messagingSenderId: "296681422203",
-  // appId from your Firebase app (web)
-  appId: "1:296681422203:web:e17b7e83e028865c6611de"
+  appId: "1:296681422203:web:e17b7e83e028865c6611de",
+  measurementId: "G-C3R0FZPGVX"
 };
 
-// Habilita la integración una vez pegadas las credenciales (true/false)
-// Ya he colocado los valores que me diste; si el appId no coincide pega
-// el valor correcto y vuelve a subir.
-window.FIREBASE_ENABLED = true;
+// Nota: No inicializamos Firebase aquí porque `app.js` usa la versión compat
+// y hace `firebase.initializeApp(window.firebaseConfig)` cuando corresponda.
