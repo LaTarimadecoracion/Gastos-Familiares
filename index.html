@@ -18,6 +18,15 @@
     <script>window.db=null</script>
 </head>
 <body>
+    <!-- Auth gate overlay: shown when Firebase is enabled and user is not authenticated -->
+    <div id="authGate" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.9);color:#fff;z-index:9999;align-items:center;justify-content:center;flex-direction:column;text-align:center;">
+        <div style="max-width:420px;padding:24px;margin:auto;">
+            <h2 style="margin:0 0 12px;font-size:22px;">Acceso requerido</h2>
+            <p style="margin:0 0 18px;opacity:0.9;">Debes iniciar sesión para ver y editar los gastos.</p>
+            <button id="authGateBtn" style="background:#18181B;color:#fff;border:none;padding:12px 18px;border-radius:8px;font-size:16px;cursor:pointer;">Ingresar con Google</button>
+            <div style="margin-top:16px;font-size:13px;opacity:0.8">Si el popup no aparece, permite ventanas emergentes o pulsa el botón.</div>
+        </div>
+    </div>
     <div class="app-container" id="appContainer" style="display: block;">
         <!-- Header -->
         <header class="app-header">

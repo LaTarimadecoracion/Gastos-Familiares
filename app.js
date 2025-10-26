@@ -80,10 +80,12 @@ function setupFirebaseAuthUI() {
             authBtn.textContent = 'Salir';
             authBtn.title = `Cerrar sesión (${user.displayName || user.email || user.uid})`;
             startRemoteSync(user.uid);
+            hideAuthGate();
         } else {
             authBtn.textContent = 'Ingresar';
             authBtn.title = 'Iniciar sesión';
             stopRemoteSync();
+            showAuthGate();
         }
     });
 
@@ -102,6 +104,44 @@ function setupFirebaseAuthUI() {
             }
         }
     });
+
+    // Auth gate button (full-screen overlay)
+    const gateBtn = document.getElementById('authGateBtn');
+    if (gateBtn) {
+        gateBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const provider = new firebase.auth.GoogleAuthProvider();
+            try {
+                await firebaseAuth.signInWithPopup(provider);
+            } catch (err) {
+                console.warn('Auth popup blocked or failed', err);
+                alert('Error en autenticación: ' + (err && err.message ? err.message : err));
+            }
+        });
+    }
+
+    // Try to auto-open the sign-in popup once (may be blocked by browser). The overlay forces the user to click if blocked.
+    setTimeout(() => {
+        if (!firebaseAuth.currentUser) {
+            try {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                firebaseAuth.signInWithPopup(provider).catch(()=>{});
+            } catch (e) {}
+        }
+    }, 800);
+}
+
+// Show/hide auth gate overlay
+function showAuthGate() {
+    const gate = document.getElementById('authGate');
+    if (!gate) return;
+    gate.style.display = 'flex';
+}
+
+function hideAuthGate() {
+    const gate = document.getElementById('authGate');
+    if (!gate) return;
+    gate.style.display = 'none';
 }
 
 function startRemoteSync(uid) {
