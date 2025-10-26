@@ -75,10 +75,16 @@ function setupFirebaseAuthUI() {
     }
 
     // React to auth state
-    firebaseAuth.onAuthStateChanged(user => {
+    firebaseAuth.onAuthStateChanged(async (user) => {
         if (user) {
             authBtn.textContent = 'Salir';
             authBtn.title = `Cerrar sesión (${user.displayName || user.email || user.uid})`;
+            // Migrar datos locales primero para evitar sobrescribirlos con el snapshot remoto
+            try {
+                await migrateLocalToRemote();
+            } catch (e) {
+                console.warn('⚠️ Error durante migración automática:', e);
+            }
             startRemoteSync(user.uid);
             hideAuthGate();
         } else {
@@ -196,18 +202,60 @@ async function deleteTransactionRemote(id) {
     await firebaseDb.collection('users').doc(user.uid).collection('transactions').doc(id).delete();
 }
 
-async function migrateLocalToRemote() {
-    if (!firebaseAuth || !firebaseAuth.currentUser) { alert('Por favor inicia sesión antes de migrar los datos'); return; }
-    if (!confirm('¿Deseas migrar las transacciones locales a Firestore? Esto puede crear duplicados.')) return;
+async function migrateLocalToRemote(options = { confirmUser: true }) {
+    // options.confirmUser: si true, pide confirmación y muestra alertas (uso manual);
+    // si false, corre en background sin prompts (uso automático al iniciar sesión).
+    if (!firebaseAuth || !firebaseAuth.currentUser) {
+        if (options.confirmUser) alert('Por favor inicia sesión antes de migrar los datos');
+        return;
+    }
+
+    if (options.confirmUser) {
+        if (!confirm('¿Deseas migrar las transacciones locales a Firestore? Esto puede crear duplicados.')) return;
+    }
+
     const u = firebaseAuth.currentUser;
     const saved = localStorage.getItem('gastosApp');
-    if (!saved) { alert('No hay datos locales para migrar'); return; }
+    if (!saved) {
+        if (options.confirmUser) alert('No hay datos locales para migrar');
+        return;
+    }
+
     const data = JSON.parse(saved);
     const txs = data.transactions || AppState.transactions || [];
-    for (const t of txs) {
-        try { await saveTransactionRemote(t); } catch (e) { console.warn('migrate error', e); }
+
+    // Detectar transacciones locales (marcadas con _local) o con id puramente numérico (timestamp)
+    const localTxs = txs.filter(t => t && (t._local === true || /^\d+$/.test(String(t.id || ''))));
+
+    if (localTxs.length === 0) {
+        if (options.confirmUser) alert('No se encontraron transacciones locales para migrar');
+        return;
     }
-    alert('Migración finalizada');
+
+    // Migrar una por una y actualizar la colección local con el id remoto
+    for (const t of localTxs) {
+        try {
+            const payload = Object.assign({}, t);
+            // No enviar campos de control
+            delete payload.id;
+            delete payload._local;
+            const remoteId = await saveTransactionRemote(payload);
+
+            // Actualizar AppState: buscar por coincidencia de campos si posible
+            const idx = AppState.transactions.findIndex(at => at && (at.id === t.id || (at.date === t.date && Number(at.amount) === Number(t.amount) && (at.description || '') === (t.description || ''))));
+            if (idx !== -1) {
+                AppState.transactions[idx].id = remoteId;
+                delete AppState.transactions[idx]._local;
+            }
+            // También actualizar el objeto guardado en localStorage
+            saveData();
+        } catch (e) {
+            console.warn('migrate error', e);
+        }
+    }
+
+    if (options.confirmUser) alert('Migración finalizada');
+    else showNotification('✅ Migración automática completada');
 }
 
 // ==========================================
@@ -1149,9 +1197,24 @@ function handleInlineEditSubmit(e, transactionId) {
         (async () => {
             try {
                 if (window.FIREBASE_ENABLED && firebaseAuth && firebaseAuth.currentUser && firebaseDb) {
-                    // Si la transacción tiene un id generado por el cliente, pasarlo; si no, Firestore lo creará
                     const payload = Object.assign({}, updatedTransaction);
-                    await saveTransactionRemote(payload);
+
+                    // Si la transacción es local (sincronizada previamente), crear documento remoto y reemplazar id
+                    if (updatedTransaction._local) {
+                        delete payload._local;
+                        delete payload.id;
+                        const remoteId = await saveTransactionRemote(payload);
+                        // Reemplazar id local por id remoto
+                        const idx = AppState.transactions.findIndex(t => t && (t.id === transactionId));
+                        if (idx !== -1) {
+                            AppState.transactions[idx].id = remoteId;
+                            delete AppState.transactions[idx]._local;
+                            saveData();
+                        }
+                    } else {
+                        // Actualizar doc remoto existente (esperamos que tenga id)
+                        await saveTransactionRemote(payload);
+                    }
                 }
             } catch (err) {
                 console.warn('⚠️ Error sincronizando actualización remota:', err);
@@ -1567,6 +1630,10 @@ function handleQuickAddSubmit(e) {
     };
 
     const normalized = normalizeTransaction(transaction);
+
+    // Si no estamos autenticados, marcar como local para migración posterior
+    const isAuthNow = window.FIREBASE_ENABLED && firebaseAuth && firebaseAuth.currentUser;
+    if (!isAuthNow) normalized._local = true;
 
     // Guardar localmente primero (respuesta instantánea)
     AppState.transactions.push(normalized);
